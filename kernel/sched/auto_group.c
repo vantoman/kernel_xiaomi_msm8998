@@ -215,7 +215,7 @@ int proc_sched_autogroup_set_nice(struct task_struct *p, int nice)
 	shares = scale_load(sched_prio_to_weight[nice + 20]);
 
 	down_write(&ag->lock);
-	err = sched_group_set_shares(ag->tg, shares);
+	err = sched_group_set_shares(ag->tg, sched_prio_to_weight[nice + 20]);
 	if (!err)
 		ag->nice = nice;
 	up_write(&ag->lock);
