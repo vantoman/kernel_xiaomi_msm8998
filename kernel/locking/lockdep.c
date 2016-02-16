@@ -2934,6 +2934,11 @@ static int mark_irqflags(struct task_struct *curr, struct held_lock *hlock)
 	return 1;
 }
 
+static inline unsigned int task_irq_context(struct task_struct *task)
+{
+	return 2 * !!task->hardirq_context + !!task->softirq_context;
+}
+
 static int separate_irq_context(struct task_struct *curr,
 		struct held_lock *hlock)
 {
@@ -2942,8 +2947,6 @@ static int separate_irq_context(struct task_struct *curr,
 	/*
 	 * Keep track of points where we cross into an interrupt context:
 	 */
-	hlock->irq_context = 2*(curr->hardirq_context ? 1 : 0) +
-				curr->softirq_context;
 	if (depth) {
 		struct held_lock *prev_hlock;
 
@@ -2973,6 +2976,11 @@ static inline int mark_irqflags(struct task_struct *curr,
 		struct held_lock *hlock)
 {
 	return 1;
+}
+
+static inline unsigned int task_irq_context(struct task_struct *task)
+{
+	return 0;
 }
 
 static inline int separate_irq_context(struct task_struct *curr,
@@ -3250,6 +3258,7 @@ static int __lock_acquire(struct lockdep_map *lock, unsigned int subclass,
 	hlock->acquire_ip = ip;
 	hlock->instance = lock;
 	hlock->nest_lock = nest_lock;
+	hlock->irq_context = task_irq_context(curr);
 	hlock->trylock = trylock;
 	hlock->read = read;
 	hlock->check = check;
