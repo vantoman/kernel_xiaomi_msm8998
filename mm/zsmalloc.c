@@ -473,6 +473,8 @@ static struct zpool_driver zs_zpool_driver = {
 	.shrink =	zs_zpool_shrink,
 	.map =		zs_zpool_map,
 	.unmap =	zs_zpool_unmap,
+	.compact =	zs_zpool_compact,
+	.get_num_compacted =	zs_zpool_get_compacted,
 	.total_size =	zs_zpool_total_size,
 	.compact =	zs_zpool_compact,
 	.get_num_compacted =	zs_zpool_get_compacted,
@@ -1527,8 +1529,8 @@ size_t zs_huge_class_size(struct zs_pool *pool)
 }
 EXPORT_SYMBOL_GPL(zs_huge_class_size);
 
-static unsigned long obj_malloc(struct page *first_page,
-		struct size_class *class, unsigned long handle)
+static unsigned long obj_malloc(struct size_class *class,
+				struct zspage *zspage, unsigned long handle)
 {
 	int i, nr_page, offset;
 	unsigned long obj;
@@ -2642,3 +2644,4 @@ module_exit(zs_exit);
 
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Nitin Gupta <ngupta@vflare.org>");
+
