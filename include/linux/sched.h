@@ -455,6 +455,8 @@ extern void io_schedule_finish(int token);
 extern long io_schedule_timeout(long timeout);
 extern void io_schedule(void);
 
+void __noreturn do_task_dead(void);
+
 struct nsproxy;
 struct user_namespace;
 
