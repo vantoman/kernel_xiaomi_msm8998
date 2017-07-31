@@ -71,3 +71,6 @@ obj-$(CONFIG_MEMORY_STATE_TIME) += memory_state_time.o
 subdir-ccflags-y += \
 	-Wno-ignored-attributes \
 	-Wno-header-guard
+
+# USB-FastCharge
+obj-$(CONFIG_FORCE_FAST_CHARGE) += fastchg.o
