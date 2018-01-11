@@ -21,7 +21,6 @@
 
 #include "power.h"
 
-
 #ifdef CONFIG_BOEFFLA_WL_BLOCKER
 #include "boeffla_wl_blocker.h"
 
@@ -32,6 +31,10 @@ bool wl_blocker_debug = false;
 static void wakeup_source_deactivate(struct wakeup_source *ws);
 #endif
 
+#ifndef CONFIG_SUSPEND
+suspend_state_t pm_suspend_target_state;
+#define pm_suspend_target_state	(PM_SUSPEND_ON)
+#endif
 
 /*
  * If set, the suspend/hibernate code will abort transitions to a sleep state
@@ -287,6 +290,9 @@ int device_wakeup_enable(struct device *dev)
 
 	if (!dev || !dev->power.can_wakeup)
 		return -EINVAL;
+
+	if (pm_suspend_target_state != PM_SUSPEND_ON)
+		dev_dbg(dev, "Suspicious %s() during system transition!\n", __func__);
 
 	ws = wakeup_source_register(dev_name(dev));
 	if (!ws)
