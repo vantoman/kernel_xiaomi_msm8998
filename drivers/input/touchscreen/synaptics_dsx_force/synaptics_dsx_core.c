@@ -151,7 +151,7 @@
 static int synaptics_rmi4_check_status(struct synaptics_rmi4_data *rmi4_data,
 		bool *was_in_bl_mode);
 static int synaptics_rmi4_free_fingers(struct synaptics_rmi4_data *rmi4_data);
-static void synaptics_rmi4_set_configured(struct synaptics_rmi4_data *rmi4_data);
+static int synaptics_rmi4_reinit_device(struct synaptics_rmi4_data *rmi4_data);
 static int synaptics_rmi4_reset_device(struct synaptics_rmi4_data *rmi4_data,
 		bool rebuild);
 static void synaptics_rmi4_sleep_enable(struct synaptics_rmi4_data *rmi4_data,
@@ -785,6 +785,9 @@ static struct device_attribute attrs[] = {
 			synaptics_rmi4_reversed_keys_store),
 };
 
+bool capacitive_keys_enabled;
+EXPORT_SYMBOL(capacitive_keys_enabled);
+
 #if defined(CONFIG_SECURE_TOUCH)
 static DEVICE_ATTR(secure_touch_enable, (S_IRUGO | S_IWUSR | S_IWGRP), synaptics_secure_touch_enable_show, synaptics_secure_touch_enable_store);
 static DEVICE_ATTR(secure_touch, S_IRUGO, synaptics_secure_touch_show, NULL);
@@ -1147,6 +1150,7 @@ static ssize_t synaptics_rmi4_0dbutton_store(struct device *dev,
 	}
 
 	rmi4_data->button_0d_enabled = input;
+	capacitive_keys_enabled = input;
 
 	return count;
 }
@@ -2007,7 +2011,7 @@ static void synaptics_rmi4_sensor_report(struct synaptics_rmi4_data *rmi4_data,
 	}
 	if (status.unconfigured && !status.flash_prog) {
 		pr_notice("%s: spontaneous reset detected\n", __func__);
-		synaptics_rmi4_set_configured(rmi4_data);
+		synaptics_rmi4_reinit_device(rmi4_data);
 	}
 
 	if (!report)
@@ -3240,6 +3244,7 @@ static int synaptics_rmi4_f1a_init(struct synaptics_rmi4_data *rmi4_data,
 		goto error_exit;
 
 	rmi4_data->button_0d_enabled = 1;
+	capacitive_keys_enabled = 1;
 
 	return 0;
 
@@ -4555,6 +4560,49 @@ exit:
 	mutex_unlock(&(rmi4_data->rmi4_reset_mutex));
 
 	return;
+}
+
+static int synaptics_rmi4_reinit_device(struct synaptics_rmi4_data *rmi4_data)
+{
+	int retval;
+	struct synaptics_rmi4_fn *fhandler;
+	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
+	struct synaptics_rmi4_device_info *rmi;
+
+	rmi = &(rmi4_data->rmi4_mod_info);
+
+	mutex_lock(&(rmi4_data->rmi4_reset_mutex));
+
+	synaptics_rmi4_free_fingers(rmi4_data);
+
+	if (!list_empty(&rmi->support_fn_list)) {
+		list_for_each_entry(fhandler, &rmi->support_fn_list, link) {
+			if (fhandler->fn_number == SYNAPTICS_RMI4_F12) {
+				synaptics_rmi4_f12_set_enables(rmi4_data, 0);
+				break;
+			}
+		}
+	}
+
+	retval = synaptics_rmi4_int_enable(rmi4_data, true);
+	if (retval < 0)
+		goto exit;
+
+	mutex_lock(&exp_data.mutex);
+	if (!list_empty(&exp_data.list)) {
+		list_for_each_entry(exp_fhandler, &exp_data.list, link)
+			if (exp_fhandler->exp_fn->reinit != NULL)
+				exp_fhandler->exp_fn->reinit(rmi4_data);
+	}
+	mutex_unlock(&exp_data.mutex);
+
+	synaptics_rmi4_set_configured(rmi4_data);
+
+	retval = 0;
+
+exit:
+	mutex_unlock(&(rmi4_data->rmi4_reset_mutex));
+	return retval;
 }
 
 static int synaptics_rmi4_reset_device(struct synaptics_rmi4_data *rmi4_data,
