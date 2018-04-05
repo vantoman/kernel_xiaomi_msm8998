@@ -4789,8 +4789,9 @@ int qseecom_start_app(struct qseecom_handle **handle,
 
 	data = kzalloc(sizeof(*data), GFP_KERNEL);
 	if (!data) {
+		pr_err("kmalloc failed\n");
 		ret = -ENOMEM;
-		goto exit_handle_free;
+			goto exit_handle_free;
 	}
 	data->abort = 0;
 	data->type = QSEECOM_CLIENT_APP;
@@ -4840,10 +4841,7 @@ recheck:
 		pr_debug("%s: Loading app for the first time'\n",
 				qseecom.pdev->init_name);
 		ret = __qseecom_load_fw(data, app_name, &app_id);
-		if (ret == -EEXIST) {
-			pr_err("recheck if TA %s is loaded\n", app_name);
-			goto recheck;
-		} else if (ret < 0)
+		if (ret < 0)
 			goto exit_ion_free;
 	}
 	data->client.app_id = app_id;
@@ -4927,7 +4925,6 @@ exit_handle_free:
 		kfree(*handle);
 		*handle = NULL;
 	}
-	__wakeup_unload_app_kthread();
 	return ret;
 }
 EXPORT_SYMBOL(qseecom_start_app);
