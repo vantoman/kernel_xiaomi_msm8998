@@ -1307,6 +1307,8 @@ ifeq ($(CONFIG_WLAN_FEATURE_FIPS), y)
 CDEFINES += -DWLAN_FEATURE_FIPS
 endif
 
+subdir-ccflags-y := $(call cc-disable-warning, misleading-indentation)
+
 ifneq ($(CONFIG_HIF_USB), 1)
 CDEFINES += -DWLAN_LOGGING_SOCK_SVC_ENABLE
 endif
