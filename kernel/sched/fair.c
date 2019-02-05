@@ -125,8 +125,6 @@ unsigned int __read_mostly sysctl_sched_shares_window = 10000000UL;
 unsigned int sysctl_sched_cfs_bandwidth_slice = 5000UL;
 #endif
 
-static inline bool cpu_is_in_target_set(struct task_struct *p, int cpu);
-
 /*
  * The margin used when comparing utilization with CPU capacity:
  * util * margin < capacity * 1024
@@ -5706,6 +5704,21 @@ static unsigned long __cpu_norm_util(unsigned long util, unsigned long capacity)
 	return (util << SCHED_CAPACITY_SHIFT)/capacity;
 }
 
+/*
+ * Check whether cpu is in the fastest set of cpu's that p should run on.
+ * If p is boosted, prefer that p runs on a faster cpu; otherwise, allow p
+ * to run on any cpu.
+ */
+static inline bool
+cpu_is_in_target_set(struct task_struct *p, int cpu)
+{
+	struct root_domain *rd = cpu_rq(smp_processor_id())->rd;
+	int first_cpu = (schedtune_task_boost(p)) ?
+		rd->max_cap_orig_cpu : rd->min_cap_orig_cpu;
+	int next_usable_cpu = cpumask_next(first_cpu - 1, &p->cpus_allowed);
+	return cpu >= next_usable_cpu || next_usable_cpu >= nr_cpu_ids;
+}
+
 /**
  * Amount of capacity of a CPU that is (estimated to be) used by CFS tasks
  * @cpu: the CPU to get the utilization of
@@ -6929,21 +6942,6 @@ static int start_cpu(bool boosted)
 	struct root_domain *rd = cpu_rq(smp_processor_id())->rd;
 
 	return boosted ? rd->max_cap_orig_cpu : rd->min_cap_orig_cpu;
-}
-
-/*
- * Check whether cpu is in the fastest set of cpu's that p should run on.
- * If p is boosted, prefer that p runs on a faster cpu; otherwise, allow p
- * to run on any cpu.
- */
-static inline bool
-cpu_is_in_target_set(struct task_struct *p, int cpu)
-{
-	struct root_domain *rd = cpu_rq(smp_processor_id())->rd;
-	int first_cpu = (schedtune_task_boost(p)) ?
-		rd->max_cap_orig_cpu : rd->min_cap_orig_cpu;
-	int next_usable_cpu = cpumask_next(first_cpu - 1, &p->cpus_allowed);
-	return cpu >= next_usable_cpu || next_usable_cpu >= nr_cpu_ids;
 }
 
 static inline int find_best_target(struct task_struct *p, int *backup_cpu,
