@@ -206,7 +206,7 @@ static void sugov_get_util(unsigned long *util, unsigned long *max, u64 time)
 {
 	int cpu = smp_processor_id();
 	struct rq *rq = cpu_rq(cpu);
-	unsigned long max_cap, rt;
+	unsigned long max_cap;
 	s64 delta;
 
 	max_cap = arch_scale_cpu_capacity(NULL, cpu);
@@ -215,13 +215,8 @@ static void sugov_get_util(unsigned long *util, unsigned long *max, u64 time)
 	delta = time - rq->age_stamp;
 	if (unlikely(delta < 0))
 		delta = 0;
-	rt = div64_u64(rq->rt_avg, sched_avg_period() + delta);
-	rt = (rt * max_cap) >> SCHED_CAPACITY_SHIFT;
 
 	*util = boosted_cpu_util(cpu);
-	if (likely(use_pelt()))
-		*util = *util + rt;
-
 	*util = min(*util, max_cap);
 	*max = max_cap;
 }
