@@ -8233,6 +8233,7 @@ void __init sched_init(void)
 		rq->next_balance = jiffies;
 		rq->push_cpu = 0;
 		rq->push_task = NULL;
+		set_cpu_isolated(i, false);
 		rq->cpu = i;
 		rq->online = 0;
 		rq->idle_stamp = 0;
