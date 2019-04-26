@@ -1286,7 +1286,7 @@ static u64 z3fold_get_pool_size(struct z3fold_pool *pool)
 	return atomic64_read(&pool->pages_nr);
 }
 
-bool z3fold_page_isolate(struct page *page, isolate_mode_t mode)
+static bool z3fold_page_isolate(struct page *page, isolate_mode_t mode)
 {
 	struct z3fold_header *zhdr;
 	struct z3fold_pool *pool;
@@ -1321,8 +1321,8 @@ out:
 	return false;
 }
 
-int z3fold_page_migrate(struct address_space *mapping, struct page *newpage,
-			struct page *page, enum migrate_mode mode)
+static int z3fold_page_migrate(struct address_space *mapping, struct page *newpage,
+			       struct page *page, enum migrate_mode mode)
 {
 	struct z3fold_header *zhdr, *new_zhdr;
 	struct z3fold_pool *pool;
@@ -1380,7 +1380,7 @@ int z3fold_page_migrate(struct address_space *mapping, struct page *newpage,
 	return 0;
 }
 
-void z3fold_page_putback(struct page *page)
+static void z3fold_page_putback(struct page *page)
 {
 	struct z3fold_header *zhdr;
 	struct z3fold_pool *pool;
