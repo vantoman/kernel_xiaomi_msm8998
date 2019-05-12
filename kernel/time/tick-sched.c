@@ -688,7 +688,7 @@ static ktime_t tick_nohz_stop_sched_tick(struct tick_sched *ts,
 		expires = KTIME_MAX;
 
 	expires = min_t(u64, expires, next_tick);
-	tick.tv64 = expires;
+	tick = expires;
 
 	/* Skip reprogram of event if its not changed */
 	if (ts->tick_stopped && (expires == dev->next_event.tv64))
@@ -781,7 +781,7 @@ static bool can_stop_idle_tick(int cpu, struct tick_sched *ts)
 	}
 
 	if (unlikely(ts->nohz_mode == NOHZ_MODE_INACTIVE)) {
-		ts->sleep_length = (ktime_t) { .tv64 = NSEC_PER_SEC/HZ };
+		ts->sleep_length = NSEC_PER_SEC/HZ;
 		return false;
 	}
 
@@ -835,7 +835,7 @@ static void __tick_nohz_idle_enter(struct tick_sched *ts)
 		ts->idle_calls++;
 
 		expires = tick_nohz_stop_sched_tick(ts, now, cpu);
-		if (expires.tv64 > 0LL) {
+		if (expires > 0LL) {
 			ts->idle_sleeps++;
 			ts->idle_expires = expires;
 		}
@@ -997,7 +997,7 @@ static void tick_nohz_handler(struct clock_event_device *dev)
 	struct pt_regs *regs = get_irq_regs();
 	ktime_t now = ktime_get();
 
-	dev->next_event.tv64 = KTIME_MAX;
+	dev->next_event = KTIME_MAX;
 
 	tick_sched_do_timer(now);
 	tick_sched_handle(ts, regs);
