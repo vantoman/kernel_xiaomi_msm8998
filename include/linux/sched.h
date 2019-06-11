@@ -3601,6 +3601,12 @@ void cpufreq_remove_update_util_hook(int cpu);
 int do_stune_boost(char *st_name, int boost, int *slot);
 int do_stune_sched_boost(char *st_name, int *slot);
 int reset_stune_boost(char *st_name, int slot);
+int do_prefer_idle(char *st_name, u64 prefer_idle);
+
+static inline int do_prefer_idle(char *st_name, u64 prefer_idle)
+{
+	return 0;
+}
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 #endif
