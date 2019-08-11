@@ -25,7 +25,6 @@
  *   pv_lock_stealing	- # of lock stealing operations
  *   pv_spurious_wakeup	- # of spurious wakeups
  *   pv_wait_again	- # of vCPU wait's that happened after a vCPU kick
- *   pv_wait_early	- # of early vCPU wait's
  *   pv_wait_head	- # of vCPU wait's at the queue head
  *   pv_wait_node	- # of vCPU wait's at a non-head queue node
  *
@@ -48,7 +47,6 @@ enum qlock_stats {
 	qstat_pv_lock_stealing,
 	qstat_pv_spurious_wakeup,
 	qstat_pv_wait_again,
-	qstat_pv_wait_early,
 	qstat_pv_wait_head,
 	qstat_pv_wait_node,
 	qstat_num,	/* Total number of statistical counters */
@@ -72,7 +70,6 @@ static const char * const qstat_names[qstat_num + 1] = {
 	[qstat_pv_latency_wake]    = "pv_latency_wake",
 	[qstat_pv_lock_stealing]   = "pv_lock_stealing",
 	[qstat_pv_wait_again]      = "pv_wait_again",
-	[qstat_pv_wait_early]      = "pv_wait_early",
 	[qstat_pv_wait_head]       = "pv_wait_head",
 	[qstat_pv_wait_node]       = "pv_wait_node",
 	[qstat_reset_cnts]         = "reset_counters",
