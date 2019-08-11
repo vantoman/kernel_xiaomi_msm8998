@@ -55,11 +55,6 @@ struct pv_node {
 };
 
 /*
- * Include queued spinlock statistics code
- */
-#include "qspinlock_stat.h"
-
-/*
  * By replacing the regular queued_spin_trylock() with the function below,
  * it will be called once when a lock waiter enter the PV slowpath before
  * being queued. By allowing one lock stealing attempt here when the pending
@@ -70,11 +65,9 @@ struct pv_node {
 static inline bool pv_queued_spin_steal_lock(struct qspinlock *lock)
 {
 	struct __qspinlock *l = (void *)lock;
-	int ret = !(atomic_read(&lock->val) & _Q_LOCKED_PENDING_MASK) &&
-		   (cmpxchg(&l->locked, 0, _Q_LOCKED_VAL) == 0);
 
-	qstat_inc(qstat_pv_lock_stealing, ret);
-	return ret;
+	return !(atomic_read(&lock->val) & _Q_LOCKED_PENDING_MASK) &&
+		(cmpxchg(&l->locked, 0, _Q_LOCKED_VAL) == 0);
 }
 
 /*
@@ -143,6 +136,11 @@ static __always_inline int trylock_clear_pending(struct qspinlock *lock)
 	return 0;
 }
 #endif /* _Q_PENDING_BITS == 8 */
+
+/*
+ * Include queued spinlock statistics code
+ */
+#include "qspinlock_stat.h"
 
 /*
  * Lock and MCS node addresses hash table for fast lookup
