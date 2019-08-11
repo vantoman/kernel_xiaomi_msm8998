@@ -622,11 +622,11 @@ static inline int atomic_dec_if_positive(atomic_t *v)
 
 /**
  * atomic_fetch_or - perform *p |= mask and return old value of *p
- * @mask: mask to OR on the atomic_t
  * @p: pointer to atomic_t
+ * @mask: mask to OR on the atomic_t
  */
 #ifndef atomic_fetch_or
-static inline int atomic_fetch_or(int mask, atomic_t *p)
+static inline int atomic_fetch_or(atomic_t *p, int mask)
 {
 	int old, val = atomic_read(p);
 
