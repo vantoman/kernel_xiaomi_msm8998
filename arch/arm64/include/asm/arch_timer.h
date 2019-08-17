@@ -20,7 +20,6 @@
 #define __ASM_ARCH_TIMER_H
 
 #include <asm/barrier.h>
-#include <asm/sysreg.h>
 
 #include <linux/bug.h>
 #include <linux/init.h>
@@ -39,19 +38,19 @@ void arch_timer_reg_write_cp15(int access, enum arch_timer_reg reg, u32 val)
 	if (access == ARCH_TIMER_PHYS_ACCESS) {
 		switch (reg) {
 		case ARCH_TIMER_REG_CTRL:
-			write_sysreg(val, cntp_ctl_el0);
+			asm volatile("msr cntp_ctl_el0,  %0" : : "r" (val));
 			break;
 		case ARCH_TIMER_REG_TVAL:
-			write_sysreg(val, cntp_tval_el0);
+			asm volatile("msr cntp_tval_el0, %0" : : "r" (val));
 			break;
 		}
 	} else if (access == ARCH_TIMER_VIRT_ACCESS) {
 		switch (reg) {
 		case ARCH_TIMER_REG_CTRL:
-			write_sysreg(val, cntv_ctl_el0);
+			asm volatile("msr cntv_ctl_el0,  %0" : : "r" (val));
 			break;
 		case ARCH_TIMER_REG_TVAL:
-			write_sysreg(val, cntv_tval_el0);
+			asm volatile("msr cntv_tval_el0, %0" : : "r" (val));
 			break;
 		}
 	}
@@ -62,38 +61,48 @@ void arch_timer_reg_write_cp15(int access, enum arch_timer_reg reg, u32 val)
 static __always_inline
 u32 arch_timer_reg_read_cp15(int access, enum arch_timer_reg reg)
 {
+	u32 val;
+
 	if (access == ARCH_TIMER_PHYS_ACCESS) {
 		switch (reg) {
 		case ARCH_TIMER_REG_CTRL:
-			return read_sysreg(cntp_ctl_el0);
+			asm volatile("mrs %0,  cntp_ctl_el0" : "=r" (val));
+			break;
 		case ARCH_TIMER_REG_TVAL:
-			return read_sysreg(cntp_tval_el0);
+			asm volatile("mrs %0, cntp_tval_el0" : "=r" (val));
+			break;
 		}
 	} else if (access == ARCH_TIMER_VIRT_ACCESS) {
 		switch (reg) {
 		case ARCH_TIMER_REG_CTRL:
-			return read_sysreg(cntv_ctl_el0);
+			asm volatile("mrs %0,  cntv_ctl_el0" : "=r" (val));
+			break;
 		case ARCH_TIMER_REG_TVAL:
-			return read_sysreg(cntv_tval_el0);
+			asm volatile("mrs %0, cntv_tval_el0" : "=r" (val));
+			break;
 		}
 	}
 
-	BUG();
+	return val;
 }
 
 static inline u32 arch_timer_get_cntfrq(void)
 {
-	return read_sysreg(cntfrq_el0);
+	u32 val;
+	asm volatile("mrs %0,   cntfrq_el0" : "=r" (val));
+	return val;
 }
 
 static inline u32 arch_timer_get_cntkctl(void)
 {
-	return read_sysreg(cntkctl_el1);
+	u32 cntkctl;
+	asm volatile("mrs	%0, cntkctl_el1" : "=r" (cntkctl));
+	return cntkctl;
 }
 
 static inline void arch_timer_set_cntkctl(u32 cntkctl)
 {
-	write_sysreg(cntkctl, cntkctl_el1);
+	asm volatile("msr	cntkctl_el1, %0" : : "r" (cntkctl));
 }
 
 static inline u64 arch_counter_get_cntpct(void)
@@ -113,10 +122,10 @@ static inline u64 arch_counter_get_cntvct(void)
 #if IS_ENABLED(CONFIG_MSM_TIMER_LEAP)
 #define L32_BITS	0x00000000FFFFFFFF
 	do {
-		cval = read_sysreg(cntvct_el0);
+		asm volatile("mrs %0, cntvct_el0" : "=r" (cval));
 	} while ((cval & L32_BITS) == L32_BITS);
 #else
-	cval = read_sysreg(cntvct_el0);
+	asm volatile("mrs %0, cntvct_el0" : "=r" (cval));
 #endif
 
 	return cval;
