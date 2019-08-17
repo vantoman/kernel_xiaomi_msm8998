@@ -103,7 +103,9 @@ static inline bool default_verity_key_id(void)
 
 static inline bool is_eng(void)
 {
-	return 1;
+	static const char typeeng[]  = "eng";
+
+	return !strncmp(buildvariant, typeeng, sizeof(typeeng));
 }
 
 static inline bool is_userdebug(void)
