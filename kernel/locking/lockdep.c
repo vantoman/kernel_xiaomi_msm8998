@@ -3644,6 +3644,12 @@ static int __lock_acquire(struct lockdep_map *lock, unsigned int subclass,
 			if (DEBUG_LOCKS_WARN_ON(hlock->references < references))
 				return 0;
 
+			hlock->references += references;
+
+			/* Overflow */
+			if (DEBUG_LOCKS_WARN_ON(hlock->references < references))
+				return 0;
+
 			return 2;
 		}
 	}
