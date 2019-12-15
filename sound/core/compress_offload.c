@@ -504,7 +504,7 @@ static int snd_compress_check_input(struct snd_compr_params *params)
 {
 	/* first let's check the buffer parameter's */
 	if (params->buffer.fragment_size == 0 ||
-            params->buffer.fragments > U32_MAX / params->buffer.fragment_size ||
+	    params->buffer.fragments > U32_MAX / params->buffer.fragment_size ||
 	    params->buffer.fragments == 0)
 		return -EINVAL;
 
@@ -719,17 +719,21 @@ static int snd_compr_drain(struct snd_compr_stream *stream)
 {
 	int retval;
 
+	mutex_lock(&stream->device->lock);
 	switch (stream->runtime->state) {
 	case SNDRV_PCM_STATE_OPEN:
 	case SNDRV_PCM_STATE_SETUP:
 	case SNDRV_PCM_STATE_PREPARED:
 	case SNDRV_PCM_STATE_PAUSED:
-		return -EPERM;
+		retval = -EPERM;
+		goto ret;
 	case SNDRV_PCM_STATE_XRUN:
-		return -EPIPE;
+		retval = -EPIPE;
+		goto ret;
 	default:
 		break;
 	}
+	mutex_unlock(&stream->device->lock);
 
 	retval = stream->ops->trigger(stream, SND_COMPR_TRIGGER_DRAIN);
 	mutex_lock(&stream->device->lock);
@@ -769,17 +773,21 @@ static int snd_compr_partial_drain(struct snd_compr_stream *stream)
 {
 	int retval;
 
+	mutex_lock(&stream->device->lock);
 	switch (stream->runtime->state) {
 	case SNDRV_PCM_STATE_OPEN:
 	case SNDRV_PCM_STATE_SETUP:
 	case SNDRV_PCM_STATE_PREPARED:
 	case SNDRV_PCM_STATE_PAUSED:
+		mutex_unlock(&stream->device->lock);
 		return -EPERM;
 	case SNDRV_PCM_STATE_XRUN:
+		mutex_unlock(&stream->device->lock);
 		return -EPIPE;
 	default:
 		break;
 	}
+	mutex_unlock(&stream->device->lock);
 
 	/* stream can be drained only when next track has been signalled */
 	if (stream->next_track == false)
@@ -934,7 +942,9 @@ static const struct file_operations snd_compr_file_ops = {
 		.write =          snd_compr_write,
 		.read =           snd_compr_read,
 		.unlocked_ioctl = snd_compr_ioctl,
-		.compat_ioctl   = snd_compr_ioctl,
+#ifdef CONFIG_COMPAT
+		.compat_ioctl = snd_compr_ioctl_compat,
+#endif
 		.mmap =           snd_compr_mmap,
 		.poll =           snd_compr_poll,
 };

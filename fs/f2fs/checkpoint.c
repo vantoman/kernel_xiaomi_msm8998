@@ -83,10 +83,9 @@ repeat:
 
 	fio.page = page;
 
-	err = f2fs_submit_page_bio(&fio);
-	if (err) {
+	if (f2fs_submit_page_bio(&fio)) {
 		f2fs_put_page(page, 1);
-		return ERR_PTR(err);
+		goto repeat;
 	}
 
 	lock_page(page);
@@ -130,31 +129,7 @@ struct page *f2fs_get_tmp_page(struct f2fs_sb_info *sbi, pgoff_t index)
 	return __get_meta_page(sbi, index, false);
 }
 
-static bool __is_bitmap_valid(struct f2fs_sb_info *sbi, block_t blkaddr,
-							int type)
-{
-	struct seg_entry *se;
-	unsigned int segno, offset;
-	bool exist;
-
-	if (type != DATA_GENERIC_ENHANCE && type != DATA_GENERIC_ENHANCE_READ)
-		return true;
-
-	segno = GET_SEGNO(sbi, blkaddr);
-	offset = GET_BLKOFF_FROM_SEG0(sbi, blkaddr);
-	se = get_seg_entry(sbi, segno);
-
-	exist = f2fs_test_bit(offset, se->cur_valid_map);
-	if (!exist && type == DATA_GENERIC_ENHANCE) {
-		f2fs_err(sbi, "Inconsistent error blkaddr:%u, sit bitmap:%d",
-			 blkaddr, exist);
-		set_sbi_flag(sbi, SBI_NEED_FSCK);
-		WARN_ON(1);
-	}
-	return exist;
-}
-
-bool f2fs_is_valid_blkaddr(struct f2fs_sb_info *sbi,
+bool f2fs_is_valid_meta_blkaddr(struct f2fs_sb_info *sbi,
 					block_t blkaddr, int type)
 {
 	switch (type) {
@@ -177,25 +152,6 @@ bool f2fs_is_valid_blkaddr(struct f2fs_sb_info *sbi,
 	case META_POR:
 		if (unlikely(blkaddr >= MAX_BLKADDR(sbi) ||
 			blkaddr < MAIN_BLKADDR(sbi)))
-			return false;
-		break;
-	case DATA_GENERIC:
-	case DATA_GENERIC_ENHANCE:
-	case DATA_GENERIC_ENHANCE_READ:
-		if (unlikely(blkaddr >= MAX_BLKADDR(sbi) ||
-				blkaddr < MAIN_BLKADDR(sbi))) {
-			f2fs_warn(sbi, "access invalid blkaddr:%u",
-				  blkaddr);
-			set_sbi_flag(sbi, SBI_NEED_FSCK);
-			WARN_ON(1);
-			return false;
-		} else {
-			return __is_bitmap_valid(sbi, blkaddr, type);
-		}
-		break;
-	case META_GENERIC:
-		if (unlikely(blkaddr < SEG0_BLKADDR(sbi) ||
-			blkaddr >= MAIN_BLKADDR(sbi)))
 			return false;
 		break;
 	default:
@@ -221,7 +177,7 @@ int f2fs_ra_meta_pages(struct f2fs_sb_info *sbi, block_t start, int nrpages,
 						REQ_RAHEAD,
 		.encrypted_page = NULL,
 		.in_list = false,
-		.is_por = (type == META_POR),
+		.is_meta = (type != META_POR),
 	};
 	struct blk_plug plug;
 
@@ -231,7 +187,7 @@ int f2fs_ra_meta_pages(struct f2fs_sb_info *sbi, block_t start, int nrpages,
 	blk_start_plug(&plug);
 	for (; nrpages-- > 0; blkno++) {
 
-		if (!f2fs_is_valid_blkaddr(sbi, blkno, type))
+		if (!f2fs_is_valid_meta_blkaddr(sbi, blkno, type))
 			goto out;
 
 		switch (type) {
@@ -820,20 +776,16 @@ static int get_checkpoint_version(struct f2fs_sb_info *sbi, block_t cp_addr,
 	if (IS_ERR(*cp_page))
 		return PTR_ERR(*cp_page);
 
-	*cp_block = (struct f2fs_checkpoint *)page_address(*cp_page);
-
 	crc_offset = le32_to_cpu((*cp_block)->checksum_offset);
-	if (crc_offset < CP_MIN_CHKSUM_OFFSET ||
-			crc_offset > CP_CHKSUM_OFFSET) {
-		f2fs_put_page(*cp_page, 1);
-		f2fs_warn(sbi, "invalid crc_offset: %zu", crc_offset);
+	if (crc_offset > (blk_size - sizeof(__le32))) {
+		f2fs_msg(sbi->sb, KERN_WARNING,
+			"invalid crc_offset: %zu", crc_offset);
 		return -EINVAL;
 	}
 
-	crc = f2fs_checkpoint_chksum(sbi, *cp_block);
-	if (crc != cur_cp_crc(*cp_block)) {
-		f2fs_put_page(*cp_page, 1);
-		f2fs_warn(sbi, "invalid crc value");
+	crc = cur_cp_crc(*cp_block);
+	if (!f2fs_crc_valid(sbi, crc, *cp_block, crc_offset)) {
+		f2fs_msg(sbi->sb, KERN_WARNING, "invalid crc value");
 		return -EINVAL;
 	}
 
@@ -852,21 +804,14 @@ static struct page *validate_checkpoint(struct f2fs_sb_info *sbi,
 	err = get_checkpoint_version(sbi, cp_addr, &cp_block,
 					&cp_page_1, version);
 	if (err)
-		return NULL;
-
-	if (le32_to_cpu(cp_block->cp_pack_total_block_count) >
-					sbi->blocks_per_seg) {
-		f2fs_warn(sbi, "invalid cp_pack_total_block_count:%u",
-			  le32_to_cpu(cp_block->cp_pack_total_block_count));
-		goto invalid_cp;
-	}
+		goto invalid_cp1;
 	pre_version = *version;
 
 	cp_addr += le32_to_cpu(cp_block->cp_pack_total_block_count) - 1;
 	err = get_checkpoint_version(sbi, cp_addr, &cp_block,
 					&cp_page_2, version);
 	if (err)
-		goto invalid_cp;
+		goto invalid_cp2;
 	cur_version = *version;
 
 	if (cur_version == pre_version) {
@@ -874,8 +819,9 @@ static struct page *validate_checkpoint(struct f2fs_sb_info *sbi,
 		f2fs_put_page(cp_page_2, 1);
 		return cp_page_1;
 	}
+invalid_cp2:
 	f2fs_put_page(cp_page_2, 1);
-invalid_cp:
+invalid_cp1:
 	f2fs_put_page(cp_page_1, 1);
 	return NULL;
 }
@@ -926,16 +872,14 @@ int f2fs_get_valid_checkpoint(struct f2fs_sb_info *sbi)
 	cp_block = (struct f2fs_checkpoint *)page_address(cur_page);
 	memcpy(sbi->ckpt, cp_block, blk_size);
 
+	/* Sanity checking of checkpoint */
+	if (f2fs_sanity_check_ckpt(sbi))
+		goto free_fail_no_cp;
+
 	if (cur_page == cp1)
 		sbi->cur_cp_pack = 1;
 	else
 		sbi->cur_cp_pack = 2;
-
-	/* Sanity checking of checkpoint */
-	if (f2fs_sanity_check_ckpt(sbi)) {
-		err = -EFSCORRUPTED;
-		goto free_fail_no_cp;
-	}
 
 	if (cp_blks <= 1)
 		goto done;
@@ -1541,7 +1485,7 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 
 	f2fs_bug_on(sbi, get_pages(sbi, F2FS_DIRTY_DENTS));
 
-	return unlikely(f2fs_cp_error(sbi)) ? -EIO : 0;
+	return 0;
 }
 
 /*
